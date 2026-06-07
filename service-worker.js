@@ -1,9 +1,9 @@
-const cacheName = "litera-reader-app-v1";
+const cacheName = "litera-reader-app-v2";
 const appShell = [
   "/",
   "/index.html",
-  "/styles.css",
-  "/app.js",
+  "/styles.css?v=20260607-2",
+  "/app.js?v=20260607-2",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
@@ -37,15 +37,14 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         if (response.ok) {
           const copy = response.clone();
           caches.open(cacheName).then((cache) => cache.put(event.request, copy));
         }
         return response;
-      });
-    }),
+      })
+      .catch(() => caches.match(event.request)),
   );
 });
