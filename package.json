@@ -1,0 +1,17 @@
+{
+  "name": "litera-reader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal book reader with bookmarks, progress, accounts, and PWA support.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx netlify-cli dev",
+    "check": "node --check app.js && node --check server.js && node --check netlify/functions/api.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

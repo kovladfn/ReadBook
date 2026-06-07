@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Litera Reader</title>
+    <meta name="theme-color" content="#247c7a" />
+    <meta name="application-name" content="Litera Reader" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script defer src="./app.js"></script>
+  </head>
+  <body data-theme="day">
+    <div class="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <i data-lucide="book-open-text"></i>
+          </div>
+          <div>
+            <p class="eyebrow">Личный ридер</p>
+            <h1>Litera</h1>
+          </div>
+        </div>
+
+        <label class="drop-zone" id="dropZone">
+          <input id="fileInput" type="file" accept=".txt,.md,.markdown,.epub,.pdf,text/plain,application/epub+zip,application/pdf" />
+          <span class="drop-art" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <strong>Загрузить книгу</strong>
+          <small>TXT, MD, EPUB или PDF</small>
+        </label>
+
+        <section class="book-panel" aria-live="polite">
+          <p class="panel-label">Сейчас открыто</p>
+          <h2 id="bookTitle">Книга не выбрана</h2>
+          <div class="book-meta">
+            <span id="bookFormat">Формат</span>
+            <span id="bookStats">0 слов</span>
+          </div>
+        </section>
+
+        <div class="tabs" role="tablist" aria-label="Навигация по книге">
+          <button class="tab-button active" id="tocTab" type="button" role="tab" aria-selected="true" data-tab="toc">
+            <i data-lucide="list-tree"></i>
+            <span>Оглавление</span>
+          </button>
+          <button class="tab-button" id="marksTab" type="button" role="tab" aria-selected="false" data-tab="marks">
+            <i data-lucide="bookmark"></i>
+            <span>Закладки</span>
+          </button>
+        </div>
+
+        <div class="panel-list" id="tocPanel" role="tabpanel" aria-labelledby="tocTab">
+          <p class="empty-list">После загрузки книги здесь появятся главы.</p>
+        </div>
+        <div class="panel-list hidden" id="marksPanel" role="tabpanel" aria-labelledby="marksTab">
+          <p class="empty-list">Закладок пока нет.</p>
+        </div>
+      </aside>
+
+      <main class="reader-shell">
+        <header class="toolbar">
+          <div class="toolbar-left">
+            <button class="icon-button" id="sidebarToggle" type="button" title="Показать или скрыть панель" aria-label="Показать или скрыть панель">
+              <i data-lucide="panel-left"></i>
+            </button>
+            <button class="action-button" id="openButton" type="button">
+              <i data-lucide="upload"></i>
+              <span>Открыть</span>
+            </button>
+          </div>
+
+          <div class="search-box">
+            <i data-lucide="search"></i>
+            <input id="searchInput" type="search" placeholder="Поиск в книге" aria-label="Поиск в книге" />
+            <button class="icon-button compact" id="searchNext" type="button" title="Найти следующее" aria-label="Найти следующее">
+              <i data-lucide="corner-down-right"></i>
+            </button>
+          </div>
+
+          <div class="toolbar-controls">
+            <div class="segmented" aria-label="Тема">
+              <button class="segment active" type="button" data-theme-choice="day" title="Светлая тема" aria-label="Светлая тема">
+                <i data-lucide="sun"></i>
+              </button>
+              <button class="segment" type="button" data-theme-choice="paper" title="Бумажная тема" aria-label="Бумажная тема">
+                <i data-lucide="scroll-text"></i>
+              </button>
+              <button class="segment" type="button" data-theme-choice="night" title="Темная тема" aria-label="Темная тема">
+                <i data-lucide="moon"></i>
+              </button>
+            </div>
+            <label class="slider-control" title="Размер текста">
+              <i data-lucide="type"></i>
+              <input id="fontSize" type="range" min="16" max="28" step="1" value="20" aria-label="Размер текста" />
+            </label>
+            <label class="slider-control wide" title="Ширина строки">
+              <i data-lucide="move-horizontal"></i>
+              <input id="measure" type="range" min="560" max="920" step="20" value="740" aria-label="Ширина строки" />
+            </label>
+            <button class="icon-button" id="bookmarkButton" type="button" title="Добавить закладку" aria-label="Добавить закладку">
+              <i data-lucide="bookmark-plus"></i>
+            </button>
+            <button class="account-button" id="authButton" type="button">
+              <i data-lucide="user-round"></i>
+              <span id="authLabel">Войти</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="progress-track" aria-hidden="true">
+          <div id="progressBar"></div>
+        </div>
+
+        <section class="reader-viewport" id="readerViewport">
+          <article class="reader-content empty" id="readerContent">
+            <div class="welcome">
+              <div class="cover-visual" aria-hidden="true">
+                <div class="cover-spine"></div>
+                <div class="cover-page">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+              <p class="eyebrow">Начните с файла книги</p>
+              <h2>Загрузите книгу и настройте чтение под себя</h2>
+              <p>Приложение сохранит прогресс, позволит быстро перейти к главам и поставить закладки в важных местах.</p>
+              <button class="primary-cta" id="welcomeOpen" type="button">
+                <i data-lucide="file-up"></i>
+                <span>Выбрать файл</span>
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <footer class="statusbar">
+          <span id="progressText">0%</span>
+          <span id="chapterText">Нет открытой книги</span>
+          <span id="savedText">Готово к чтению</span>
+        </footer>
+      </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <section class="auth-card">
+        <button class="icon-button auth-close" id="authClose" type="button" title="Закрыть" aria-label="Закрыть">
+          <i data-lucide="x"></i>
+        </button>
+
+        <p class="eyebrow">Синхронизация</p>
+        <h2 id="authTitle">Вход</h2>
+        <p class="auth-hint" id="authHint">Войдите, чтобы хранить закладки и прогресс отдельно для вашего аккаунта.</p>
+
+        <form class="auth-form" id="authForm">
+          <label class="auth-field" id="authNameField">
+            <span>Имя</span>
+            <input id="authName" type="text" autocomplete="name" placeholder="Например, Влад" />
+          </label>
+          <label class="auth-field">
+            <span>Email</span>
+            <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
+          </label>
+          <label class="auth-field">
+            <span>Пароль</span>
+            <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Минимум 6 символов" required />
+          </label>
+          <button class="primary-cta auth-submit" id="authSubmit" type="submit">
+            <i data-lucide="log-in"></i>
+            <span>Войти</span>
+          </button>
+        </form>
+
+        <div class="auth-profile hidden" id="authProfile">
+          <div class="profile-avatar" aria-hidden="true">
+            <i data-lucide="user-round-check"></i>
+          </div>
+          <div>
+            <strong id="authUserName">Аккаунт</strong>
+            <span id="authUserEmail">email</span>
+          </div>
+        </div>
+
+        <div class="auth-actions">
+          <button class="text-button" id="authToggle" type="button">Создать аккаунт</button>
+          <button class="text-button hidden" id="syncNowButton" type="button">Синхронизировать</button>
+          <button class="text-button danger hidden" id="logoutButton" type="button">Выйти</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

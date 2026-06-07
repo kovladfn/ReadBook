@@ -1,0 +1,7 @@
+data/
+node_modules/
+.netlify/
+.DS_Store
+*.log
+npm-debug.log*
+book-reader-project.zip
