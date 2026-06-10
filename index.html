@@ -9,11 +9,9 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="./styles.css?v=20260607-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260610-1" />
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script defer src="./app.js?v=20260607-2"></script>
+    <script defer src="./app.js?v=20260610-1"></script>
   </head>
   <body data-theme="day">
     <div class="app">
@@ -178,6 +176,7 @@
             <i data-lucide="log-in"></i>
             <span>Войти</span>
           </button>
+          <p class="auth-status" id="authStatus" role="status" aria-live="polite"></p>
         </form>
 
         <div class="auth-profile hidden" id="authProfile">

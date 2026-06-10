@@ -1053,6 +1053,39 @@ button {
   margin-top: 4px;
 }
 
+.auth-submit.is-loading {
+  cursor: wait;
+  opacity: 0.82;
+}
+
+.auth-status {
+  display: none;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--subtle);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.auth-status.visible {
+  display: block;
+}
+
+.auth-status[data-tone="error"] {
+  border-color: color-mix(in srgb, var(--accent-warm) 44%, var(--subtle));
+  background: color-mix(in srgb, var(--accent-warm) 9%, var(--surface));
+  color: color-mix(in srgb, var(--accent-warm) 72%, var(--ink));
+}
+
+.auth-status[data-tone="success"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--subtle));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--accent-strong);
+}
+
 .auth-profile {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);

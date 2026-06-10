@@ -37,6 +37,7 @@ const els = {
   authEmail: document.getElementById("authEmail"),
   authPassword: document.getElementById("authPassword"),
   authSubmit: document.getElementById("authSubmit"),
+  authStatus: document.getElementById("authStatus"),
   authToggle: document.getElementById("authToggle"),
   authProfile: document.getElementById("authProfile"),
   authUserName: document.getElementById("authUserName"),
@@ -49,6 +50,11 @@ const storageKey = "litera-reader:v1";
 const authStorageKey = "litera-reader:auth:v1";
 const bookCacheDbName = "litera-reader-book-cache";
 const bookCacheStoreName = "books";
+const scriptSources = {
+  jszip: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
+  pdfjs: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
+  pdfWorker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+};
 let activeStoreKey = storageKey;
 const defaultSettings = {
   theme: "day",
@@ -74,6 +80,44 @@ let state = {
 };
 
 const wheelScrollSpeed = 2.6;
+const scriptLoaders = new Map();
+
+function loadScript(src, globalName, label) {
+  if (window[globalName]) return Promise.resolve(window[globalName]);
+  if (scriptLoaders.has(src)) return scriptLoaders.get(src);
+
+  const loader = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    script.onload = () => {
+      if (window[globalName]) {
+        resolve(window[globalName]);
+      } else {
+        reject(new Error(`${label} загрузилась некорректно. Обновите страницу и попробуйте снова.`));
+      }
+    };
+    script.onerror = () => reject(new Error(`${label} не загрузилась. Проверьте интернет и попробуйте снова.`));
+    document.head.append(script);
+  }).catch((error) => {
+    scriptLoaders.delete(src);
+    throw error;
+  });
+
+  scriptLoaders.set(src, loader);
+  return loader;
+}
+
+function loadJSZip() {
+  return loadScript(scriptSources.jszip, "JSZip", "Библиотека EPUB");
+}
+
+async function loadPdfJs() {
+  const pdfjs = await loadScript(scriptSources.pdfjs, "pdfjsLib", "Библиотека PDF");
+  pdfjs.GlobalWorkerOptions.workerSrc = scriptSources.pdfWorker;
+  return pdfjs;
+}
 
 function loadStore() {
   try {
@@ -230,11 +274,25 @@ async function apiRequest(path, options = {}) {
   };
   if (state.auth?.token) headers.Authorization = `Bearer ${state.auth.token}`;
 
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), options.timeout || 18000);
+  let response;
+  try {
+    response = await fetch(path, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Сервер долго не отвечает. Попробуйте еще раз.");
+    }
+    throw new Error("Нет соединения с сервером. Проверьте интернет и попробуйте снова.");
+  } finally {
+    window.clearTimeout(timeout);
+  }
+
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(payload.error || "Ошибка сервера");
@@ -255,6 +313,7 @@ function initAuth() {
 }
 
 function openAuthModal() {
+  if (!state.auth) setAuthStatus("");
   updateAuthUi();
   els.authModal.classList.remove("hidden");
   refreshIcons();
@@ -270,7 +329,28 @@ function closeAuthModal() {
 
 function setAuthMode(mode) {
   state.authMode = mode;
+  setAuthStatus("");
   updateAuthUi();
+}
+
+function setAuthStatus(message, tone = "info") {
+  if (!els.authStatus) return;
+  els.authStatus.textContent = message;
+  els.authStatus.dataset.tone = tone;
+  els.authStatus.classList.toggle("visible", Boolean(message));
+}
+
+function setAuthBusy(isBusy, label) {
+  els.authSubmit.disabled = isBusy;
+  els.authSubmit.setAttribute("aria-busy", String(isBusy));
+  els.authSubmit.classList.toggle("is-loading", isBusy);
+  if (label) els.authSubmit.querySelector("span").textContent = label;
+}
+
+function restoreAuthSubmitLabel(mode = state.authMode) {
+  els.authSubmit.querySelector("span").textContent = mode === "register" ? "Создать аккаунт" : "Войти";
+  els.authSubmit.removeAttribute("aria-busy");
+  els.authSubmit.classList.remove("is-loading");
 }
 
 function updateAuthUi() {
@@ -309,12 +389,28 @@ async function handleAuthSubmit(event) {
   const mode = state.authMode;
   const anonymousStore = activeStoreKey === storageKey ? loadStore() : {};
   const body = {
-    email: els.authEmail.value,
+    email: els.authEmail.value.trim(),
     password: els.authPassword.value,
   };
-  if (mode === "register") body.name = els.authName.value;
+  if (!body.email) {
+    setAuthStatus("Введите email.", "error");
+    els.authEmail.focus();
+    return;
+  }
+  if (!els.authEmail.checkValidity()) {
+    setAuthStatus("Проверьте формат email.", "error");
+    els.authEmail.focus();
+    return;
+  }
+  if (!body.password || body.password.length < 6) {
+    setAuthStatus("Пароль должен быть не короче 6 символов.", "error");
+    els.authPassword.focus();
+    return;
+  }
+  if (mode === "register") body.name = els.authName.value.trim();
 
-  els.authSubmit.disabled = true;
+  setAuthStatus(mode === "register" ? "Создаем аккаунт..." : "Проверяем данные...", "info");
+  setAuthBusy(true, mode === "register" ? "Создаем..." : "Входим...");
   try {
     const payload = await apiRequest(mode === "register" ? "/api/register" : "/api/login", {
       method: "POST",
@@ -325,9 +421,12 @@ async function handleAuthSubmit(event) {
     closeAuthModal();
     showToast(mode === "register" ? "Аккаунт создан, синхронизация включена" : "Вы вошли, данные синхронизированы");
   } catch (error) {
-    showToast(error.message || "Не удалось войти");
+    const message = error.message || "Не удалось войти";
+    setAuthStatus(message, "error");
+    showToast(message);
   } finally {
     els.authSubmit.disabled = false;
+    restoreAuthSubmitLabel(mode);
   }
 }
 
@@ -802,10 +901,7 @@ function plainTextToHtml(text, title) {
 }
 
 async function parseEpub(buffer, fileName) {
-  if (!window.JSZip) {
-    throw new Error("Библиотека EPUB еще не загрузилась. Обновите страницу и попробуйте снова.");
-  }
-
+  const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(buffer);
   const container = await zip.file("META-INF/container.xml")?.async("text");
   if (!container) throw new Error("В EPUB не найден container.xml.");
@@ -982,12 +1078,7 @@ function sanitizeHtml(root) {
 }
 
 async function parsePdf(buffer, fileName) {
-  const pdfjs = window.pdfjsLib;
-  if (!pdfjs) {
-    throw new Error("Библиотека PDF еще не загрузилась. Обновите страницу и попробуйте снова.");
-  }
-
-  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pdfjs = await loadPdfJs();
   const documentTask = pdfjs.getDocument({ data: new Uint8Array(buffer) });
   const pdf = await documentTask.promise;
   const title = niceTitleFromFile(fileName);
@@ -1383,6 +1474,9 @@ function bindEvents() {
   els.authButton.addEventListener("click", openAuthModal);
   els.authClose.addEventListener("click", closeAuthModal);
   els.authToggle.addEventListener("click", () => setAuthMode(state.authMode === "login" ? "register" : "login"));
+  [els.authName, els.authEmail, els.authPassword].forEach((input) => {
+    input.addEventListener("input", () => setAuthStatus(""));
+  });
   els.authForm.addEventListener("submit", handleAuthSubmit);
   els.syncNowButton.addEventListener("click", () => syncWithServer({ silent: false }));
   els.logoutButton.addEventListener("click", logout);
